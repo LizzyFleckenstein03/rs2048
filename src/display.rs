@@ -1,6 +1,5 @@
 use super::game::{Board, Pos};
-use ansi_term::Color;
-use std::fmt;
+use crossterm::{cursor, queue, style::*};
 
 enum Mode {
     Roof_,
@@ -13,20 +12,19 @@ enum Mode {
 const FIELD_HEIGHT: usize = 3;
 const FIELD_WIDTH: usize = 8;
 
-fn write_line(f: &mut fmt::Formatter, vec: &[u32], mode: Mode) -> fmt::Result {
+fn write_line(stdout: &mut std::io::Stdout, vec: &[u32], mode: Mode) -> crossterm::Result<()> {
     let mut vec = vec;
     let len = vec.len();
 
-    write!(
-        f,
-        "{}",
-        match mode {
+    queue!(
+        stdout,
+        Print(match mode {
             Mode::Roof_ => "┏",
             Mode::Data_ => "┃",
             Mode::Floor => "┠",
             Mode::Empty => "┃",
             Mode::Base_ => "┗",
-        }
+        })
     )?;
 
     for i in 0..len {
@@ -34,11 +32,11 @@ fn write_line(f: &mut fmt::Formatter, vec: &[u32], mode: Mode) -> fmt::Result {
         vec = &vec[0..vec.len() - 1];
 
         match mode {
-            Mode::Data_ | Mode::Empty => write!(f, "\x1b[0m ")?,
+            Mode::Data_ | Mode::Empty => queue!(stdout, Print(" "))?,
             _ => {}
         }
 
-        let color = match mode {
+        match mode {
             Mode::Data_ | Mode::Empty if n != 0 => {
                 let (r, g, b) = hsl::HSL {
                     h: (n * 360 / 12) as f64,
@@ -47,102 +45,100 @@ fn write_line(f: &mut fmt::Formatter, vec: &[u32], mode: Mode) -> fmt::Result {
                 }
                 .to_rgb();
 
-                Color::Black.on(Color::RGB(r, g, b))
+                queue!(
+                    stdout,
+                    SetColors(Colors::new(Color::Black, Color::Rgb { r, g, b }))
+                )?;
             }
-            _ => Color::White.on(Color::Black),
+            _ => {}
         };
 
         if let Mode::Data_ = mode {
             if n == 0 {
-                write!(f, "{}", " ".repeat(FIELD_WIDTH - 2))?;
+                queue!(stdout, Print(" ".repeat(FIELD_WIDTH - 2)))?;
             } else {
-                write!(
-                    f,
-                    "{}",
-                    color.paint(format!("{:^w$}", 1 << n, w = FIELD_WIDTH - 2))
+                queue!(
+                    stdout,
+                    Print(format!("{:^w$}", 1 << n, w = FIELD_WIDTH - 2))
                 )?;
             }
         } else {
-            write!(
-                f,
-                "{}",
-                match mode {
+            queue!(
+                stdout,
+                Print(match mode {
                     Mode::Roof_ | Mode::Base_ => "━".repeat(FIELD_WIDTH),
                     Mode::Floor => "─".repeat(FIELD_WIDTH),
-                    Mode::Empty => color.paint(" ".repeat(FIELD_WIDTH - 2)).to_string(),
+                    Mode::Empty => " ".repeat(FIELD_WIDTH - 2),
                     Mode::Data_ => panic!("unreachable"),
-                }
+                })
             )?;
         }
 
         match mode {
-            Mode::Data_ | Mode::Empty => write!(f, " ")?,
+            Mode::Data_ | Mode::Empty => {
+                queue!(stdout, Print(" "), SetAttribute(Attribute::Reset))?
+            }
             _ => {}
         }
 
         if i != len - 1 {
-            write!(
-                f,
-                "{}",
-                match mode {
+            queue!(
+                stdout,
+                Print(match mode {
                     Mode::Roof_ => "┯",
                     Mode::Data_ => "│",
                     Mode::Floor => "┼",
                     Mode::Empty => "│",
                     Mode::Base_ => "┷",
-                }
+                })
             )?;
         }
     }
 
-    write!(
-        f,
-        "{}",
-        match mode {
+    queue!(
+        stdout,
+        Print(match mode {
             Mode::Roof_ => "┓",
             Mode::Data_ => "┃",
             Mode::Floor => "┨",
             Mode::Empty => "┃",
             Mode::Base_ => "┛",
-        }
+        }),
+        cursor::MoveToNextLine(1),
     )?;
-
-    writeln!(f)?;
 
     Ok(())
 }
 
-impl fmt::Display for Board {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let dummy = vec![0; self.size.x as usize];
+pub fn display_board(stdout: &mut std::io::Stdout, board: &Board) -> crossterm::Result<()> {
+    let dummy = vec![0; board.size.x as usize];
 
-        write_line(f, &dummy, Mode::Roof_)?;
+    write_line(stdout, &dummy, Mode::Roof_)?;
 
-        for y in 0..self.size.y {
-            let vec = (0..self.size.x)
-                .rev()
-                .map(|x| self.get(Pos::new(x, y)).value())
-                .collect::<Vec<u32>>();
+    for y in 0..board.size.y {
+        let vec = (0..board.size.x)
+            .rev()
+            .map(|x| board.get(Pos::new(x, y)).value())
+            .collect::<Vec<u32>>();
 
-            for i in 0..FIELD_HEIGHT {
-                write_line(
-                    f,
-                    &vec,
-                    if i == FIELD_HEIGHT / 2 {
-                        Mode::Data_
-                    } else {
-                        Mode::Empty
-                    },
-                )?;
-            }
-
-            if y != self.size.y - 1 {
-                write_line(f, &dummy, Mode::Floor)?;
-            }
+        for i in 0..FIELD_HEIGHT {
+            write_line(
+                stdout,
+                &vec,
+                if i == FIELD_HEIGHT / 2 {
+                    Mode::Data_
+                } else {
+                    Mode::Empty
+                },
+            )?;
         }
 
-        write_line(f, &dummy, Mode::Base_)?;
-
-        Ok(())
+        if y != board.size.y - 1 {
+            write_line(stdout, &dummy, Mode::Floor)?;
+        }
     }
+
+    write_line(stdout, &dummy, Mode::Base_)?;
+
+    Ok(())
 }
