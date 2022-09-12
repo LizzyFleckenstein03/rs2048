@@ -15,7 +15,7 @@ impl Swap for Pos {
 pub struct Field(RefCell<u32>);
 
 enum MergeResult {
-    Merged,
+    Merged(u32),
     Replaced,
     Blocked,
     Empty,
@@ -49,7 +49,7 @@ impl Field {
             *s += 1;
             *o = 0;
 
-            return MergeResult::Merged;
+            return MergeResult::Merged(1 << *s);
         }
 
         MergeResult::Blocked
@@ -78,7 +78,7 @@ impl Board {
         }
     }
 
-    pub fn step(&self, dir: Dir) -> bool {
+    pub fn step(&self, dir: Dir) -> Option<u32> {
         let dir = match dir {
             Dir::Up => -Pos::Y,
             Dir::Down => Pos::Y,
@@ -94,7 +94,7 @@ impl Board {
 
         let start = (dir + Pos::ONE) / 2 * (self.size - Pos::ONE);
 
-        let mut moved = false;
+        let mut score = None;
 
         for row in 0..len_row {
             let start_row = start + row * step_row;
@@ -106,21 +106,19 @@ impl Board {
                     let field2 = self.get(start_row + col2 * step_col);
 
                     match field1.merge(field2) {
-                        MergeResult::Merged => {
-                            moved = true;
+                        MergeResult::Merged(sc) => {
+                            score = Some(score.unwrap_or(0) + sc);
                             break;
                         }
-                        MergeResult::Replaced => {
-                            moved = true;
-                        }
+                        MergeResult::Replaced => score = Some(score.unwrap_or(0)),
                         MergeResult::Blocked => break,
-                        MergeResult::Empty => {}
+                        MergeResult::Empty => continue,
                     }
                 }
             }
         }
 
-        moved
+        score
     }
 
     pub fn get(&self, pos: Pos) -> &Field {

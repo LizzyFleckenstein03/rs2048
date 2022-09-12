@@ -1,7 +1,7 @@
 pub mod display;
 pub mod game;
 
-use crossterm::{cursor, event, execute, queue, terminal};
+use crossterm::{cursor, event, execute, queue, style, terminal};
 use game::{Board, Dir::*, Pos};
 use std::io::Write;
 
@@ -17,11 +17,18 @@ fn main() {
     board.spawn(&mut rng);
     board.spawn(&mut rng);
 
+    let mut score = 0;
+
     loop {
         queue!(
             stdout,
             terminal::Clear(terminal::ClearType::All),
-            cursor::MoveTo(0, 0)
+            cursor::MoveTo(0, 0),
+            style::SetAttribute(style::Attribute::Bold),
+            style::Print("Score: ".to_string()),
+            style::SetAttribute(style::Attribute::Reset),
+            style::Print(score.to_string()),
+            cursor::MoveToNextLine(1),
         )
         .unwrap();
         display::display_board(&mut stdout, &board).unwrap();
@@ -31,7 +38,7 @@ fn main() {
             match evt {
                 event::Event::Key(event::KeyEvent { code, .. }) => match code {
                     event::KeyCode::Char(ch) => {
-                        if board.step(match ch.to_ascii_lowercase() {
+                        if let Some(sc) = board.step(match ch.to_ascii_lowercase() {
                             'w' => Up,
                             'a' => Left,
                             's' => Down,
@@ -39,6 +46,7 @@ fn main() {
                             'q' => break,
                             _ => continue,
                         }) {
+                            score += sc;
                             board.spawn(&mut rng);
                         }
                     }

@@ -53,26 +53,15 @@ fn write_line(stdout: &mut std::io::Stdout, vec: &[u32], mode: Mode) -> crosster
             _ => {}
         };
 
-        if let Mode::Data_ = mode {
-            if n == 0 {
-                queue!(stdout, Print(" ".repeat(FIELD_WIDTH - 2)))?;
-            } else {
-                queue!(
-                    stdout,
-                    Print(format!("{:^w$}", 1 << n, w = FIELD_WIDTH - 2))
-                )?;
-            }
-        } else {
-            queue!(
-                stdout,
-                Print(match mode {
-                    Mode::Roof_ | Mode::Base_ => "━".repeat(FIELD_WIDTH),
-                    Mode::Floor => "─".repeat(FIELD_WIDTH),
-                    Mode::Empty => " ".repeat(FIELD_WIDTH - 2),
-                    Mode::Data_ => panic!("unreachable"),
-                })
-            )?;
-        }
+        queue!(
+            stdout,
+            Print(match mode {
+                Mode::Roof_ | Mode::Base_ => "━".repeat(FIELD_WIDTH),
+                Mode::Floor => "─".repeat(FIELD_WIDTH),
+                Mode::Data_ if n != 0 => format!("{:^w$}", 1 << n, w = FIELD_WIDTH - 2),
+                Mode::Empty | Mode::Data_ => " ".repeat(FIELD_WIDTH - 2),
+            })
+        )?;
 
         match mode {
             Mode::Data_ | Mode::Empty => {
