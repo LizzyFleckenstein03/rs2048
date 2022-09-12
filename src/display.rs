@@ -65,7 +65,7 @@ fn write_line(stdout: &mut std::io::Stdout, vec: &[u32], mode: Mode) -> crosster
 
         match mode {
             Mode::Data_ | Mode::Empty => {
-                queue!(stdout, Print(" "), SetAttribute(Attribute::Reset))?
+                queue!(stdout, SetAttribute(Attribute::Reset), Print(" "))?
             }
             _ => {}
         }
